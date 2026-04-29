@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REDE RÁDIO - 1704</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .radio-container {
+            background: #333;
+            padding: 30px;
+            border-radius: 20px;
+            border: 4px solid #444;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 320px;
+        }
+
+        .display {
+            background: #000;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #111;
+            margin-bottom: 20px;
+        }
+
+        input {
+            background: transparent;
+            border: none;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 1.5rem;
+            text-align: center;
+            width: 100%;
+            outline: none;
+        }
+
+        .ptt-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background: radial-gradient(#e74c3c, #c0392b);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 6px #992d22;
+            transition: all 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .ptt-btn:active {
+            box-shadow: 0 2px #992d22;
+            transform: translateY(4px);
+            background: radial-gradient(#c0392b, #a93226);
+        }
+
+        .ptt-btn:disabled {
+            background: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .list-container {
+            width: 100%;
+            margin-top: 20px;
+            text-align: left;
+            font-size: 0.8rem;
+            border-top: 1px solid #444;
+            padding-top: 10px;
+        }
+
+        .user-item {
+            color: #aaa;
+            margin: 3px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .online-dot {
+            color: #0f0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="radio-container">
+        <div style="font-size: 0.7rem; color: #888; margin-bottom: 10px;">CANAL: <span id="roomDisplay">1704</span>
+        </div>
+        <div class="display">
+            <label style="font-size: 0.7rem; color: #444; display: block; margin-bottom: 5px;">IDENTIFICAÇÃO</label>
+            <input type="text" id="vtrInput" value="54-7967">
+        </div>
+
+        <button class="ptt-btn" id="pttBtn" disabled>CARREGANDO</button>
+        <p id="status" style="color: #666; font-size: 0.7rem; margin-top: 15px;">INICIANDO...</p>
+
+        <div class="list-container">
+            <div style="font-weight: bold; margin-bottom: 5px; color: #888;">NA ESCUTA (MÁX 5):</div>
+            <div id="userList"></div>
+        </div>
+    </div>
+
+    <script>
+        const ccirTable = { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 };
+        const ROOM_ID = "SALA_RÁDIO_1704";
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        const pttBtn = document.getElementById('pttBtn');
+        const vtrInput = document.getElementById('vtrInput');
+        const statusText = document.getElementById('status');
+        const userList = document.getElementById('userList');
+
+        let peer = new Peer();
+        let localStream;
+
+        // 1. Lógica de Áudio EXATA do seu modelo
+        async function playSelCall(digits) {
+            const duration = 0.1;
+            let startTime = audioCtx.currentTime;
+            let cleanDigits = digits.replace(/\D/g, '').split('');
+            let processed = [];
+
+            for (let i = 0; i < cleanDigits.length; i++) {
+                if (i > 0 && cleanDigits[i] === cleanDigits[i - 1]) {
+                    processed.push('R');
+                } else {
+                    processed.push(cleanDigits[i]);
+                }
+            }
+
+            processed.forEach(digit => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.frequency.value = ccirTable[digit];
+                osc.type = 'sine';
+
+                // Envelope de ganho idêntico ao seu pedido
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.5, startTime + 0.01);
+                gain.gain.linearRampToValueAtTime(0.5, startTime + duration - 0.01);
+                gain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+                startTime += duration;
+            });
+
+            return new Promise(resolve => setTimeout(resolve, processed.length * 100));
+        }
+
+        // 2. Inicialização da Rede e Microfone
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            localStream = stream;
+            statusText.innerText = "PRONTO";
+            pttBtn.innerText = "PTT";
+            pttBtn.disabled = false;
+
+            peer.on('open', (id) => {
+                console.log('Meu ID Peer:', id);
+                addUserToList(vtrInput.value + " (Você)");
+            });
+
+            // Atender chamadas de amigos
+            peer.on('call', call => {
+                call.answer();
+                call.on('stream', remoteStream => {
+                    const audio = new Audio();
+                    audio.srcObject = remoteStream;
+                    audio.play();
+                });
+            });
+        }).catch(err => {
+            statusText.innerText = "ERRO: MICROFONE NÃO AUTORIZADO";
+            statusText.style.color = "red";
+        });
+
+        // 3. Ação do Botão
+        pttBtn.addEventListener('mousedown', async () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            statusText.innerText = "SINALIZANDO...";
+            statusText.style.color = "#f1c40f";
+
+            await playSelCall(vtrInput.value);
+
+            statusText.innerText = "TRANSMITINDO...";
+            statusText.style.color = "#e74c3c";
+
+        });
+
+        pttBtn.addEventListener('mouseup', () => {
+            statusText.innerText = "PRONTO";
+            statusText.style.color = "#666";
+        });
+
+        function addUserToList(name) {
+            if (userList.children.length < 5) {
+                const div = document.createElement('div');
+                div.className = "user-item";
+                div.innerHTML = `<span>${name}</span> <span class="online-dot">●</span>`;
+                userList.appendChild(div);
+            }
+        }
+    </script>
+</body>
+
+</html>
