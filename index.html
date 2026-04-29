@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>REDE RÁDIO - 1704</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -82,6 +82,7 @@
             font-size: 0.8rem;
             border-top: 1px solid #444;
             padding-top: 10px;
+            min-height: 80px;
         }
 
         .user-item {
@@ -94,6 +95,13 @@
         .online-dot {
             color: #0f0;
         }
+
+        #status {
+            color: #666;
+            font-size: 0.7rem;
+            margin-top: 15px;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 
@@ -104,11 +112,11 @@
         </div>
         <div class="display">
             <label style="font-size: 0.7rem; color: #444; display: block; margin-bottom: 5px;">IDENTIFICAÇÃO</label>
-            <input type="text" id="vtrInput" value="54-7967">
+            <input type="text" id="vtrInput" value="">
         </div>
 
         <button class="ptt-btn" id="pttBtn" disabled>BUSCANDO VAGA</button>
-        <p id="status" style="color: #666; font-size: 0.7rem; margin-top: 15px;">AGUARDANDO MICROFONE...</p>
+        <p id="status">AGUARDANDO MICROFONE...</p>
 
         <div class="list-container">
             <div style="font-weight: bold; margin-bottom: 5px; color: #888;">NA ESCUTA (MÁX 5):</div>
@@ -124,144 +132,150 @@
         const pttBtn = document.getElementById('pttBtn');
         const vtrInput = document.getElementById('vtrInput');
         const statusText = document.getElementById('status');
-        const userList = document.getElementById('userList');
+        const userListDisplay = document.getElementById('userList');
 
         let peer = null;
         let localStream;
         let meuSlot = 0;
-        let chamadasAtivas = {};
+        let conexoesAtivas = {};
 
-        // 1. Lógica de Áudio (Corte Seco)
+        // Configuração STUN para atravessar Firewalls e redes móveis
+        const peerConfig = {
+            config: {
+                'iceServers': [
+                    { url: 'stun:stun.l.google.com:19302' },
+                    { url: 'stun:stun1.l.google.com:19302' }
+                ]
+            }
+        };
+
         async function playSelCall(digits) {
             const duration = 0.1;
             let startTime = audioCtx.currentTime;
             let cleanDigits = digits.replace(/\D/g, '').split('');
             let processed = [];
-
             for (let i = 0; i < cleanDigits.length; i++) {
                 processed.push(i > 0 && cleanDigits[i] === cleanDigits[i - 1] ? 'R' : cleanDigits[i]);
             }
-
             processed.forEach(digit => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.frequency.value = ccirTable[digit];
                 osc.type = 'sine';
-
-                // Corte seco para som de rádio real
                 gain.gain.setValueAtTime(0, startTime);
                 gain.gain.setValueAtTime(0.5, startTime + 0.002);
                 gain.gain.setValueAtTime(0.5, startTime + duration - 0.002);
                 gain.gain.setValueAtTime(0, startTime + duration);
-
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
-
                 osc.start(startTime);
                 osc.stop(startTime + duration);
                 startTime += duration;
             });
-
             return new Promise(resolve => setTimeout(resolve, processed.length * 100));
         }
 
-        // 2. Inicialização de Rede e Microfone
         async function iniciar() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                statusText.innerText = "BUSCANDO SLOT DISPONÍVEL...";
-                encontrarVaga();
+                statusText.innerText = "BUSCANDO VAGA NA REDE...";
+                tentarOcuparSlot(1);
             } catch (err) {
-                statusText.innerText = "ERRO: ACESSO AO MICROFONE NEGADO";
-                statusText.style.color = "red";
+                statusText.innerText = "ERRO: PERMITA O MICROFONE";
             }
         }
 
-        async function encontrarVaga() {
-            for (let i = 1; i <= 5; i++) {
-                const idTentativa = SALA_BASE + i;
-                const tempPeer = new Peer(idTentativa);
-
-                const ocupado = await new Promise((resolve) => {
-                    tempPeer.on('open', () => resolve(false));
-                    tempPeer.on('error', (err) => resolve(true));
-                });
-
-                if (!ocupado) {
-                    peer = tempPeer;
-                    meuSlot = i;
-                    configurarPeer();
-                    return;
-                } else {
-                    tempPeer.destroy();
-                }
+        function tentarOcuparSlot(slot) {
+            if (slot > 5) {
+                statusText.innerText = "SALA CHEIA (MAX 5)";
+                return;
             }
-            statusText.innerText = "SALA CHEIA (MÁX 5)";
+            const idTentativa = SALA_BASE + slot;
+            const p = new Peer(idTentativa, peerConfig);
+
+            p.on('open', (id) => {
+                peer = p;
+                meuSlot = slot;
+                configurarRadio();
+            });
+
+            p.on('error', (err) => {
+                p.destroy();
+                tentarOcuparSlot(slot + 1); // Tenta o próximo slot disponível
+            });
         }
 
-        function configurarPeer() {
+        function configurarRadio() {
             statusText.innerText = "ONLINE - SLOT " + meuSlot;
             pttBtn.innerText = "PTT";
             pttBtn.disabled = false;
+            atualizarListaInterface();
 
-            addUserToList(vtrInput.value + " (Você)");
-
-            // Receber áudio
+            // RECEBER CHAMADAS
             peer.on('call', call => {
-                call.answer();
+                call.answer(localStream);
                 call.on('stream', remoteStream => {
-                    const audio = new Audio();
-                    audio.srcObject = remoteStream;
-                    audio.play();
+                    if (!document.getElementById('audio-' + call.peer)) {
+                        const audio = new Audio();
+                        audio.id = 'audio-' + call.peer;
+                        audio.srcObject = remoteStream;
+                        audio.play();
+                    }
                 });
             });
 
-            // Tentar conectar nos outros slots a cada 5 segundos
-            setInterval(conectarAosOutros, 5000);
-        }
-
-        function conectarAosOutros() {
-            for (let i = 1; i <= 5; i++) {
-                if (i === meuSlot) continue;
-                const destinoId = SALA_BASE + i;
-
-                // Se não estamos chamando esse slot, tentamos chamar
-                if (!chamadasAtivas[destinoId]) {
-                    const call = peer.call(destinoId, localStream);
-                    if (call) {
-                        chamadasAtivas[destinoId] = call;
-                        call.on('stream', remoteStream => {
-                            const audio = new Audio();
-                            audio.srcObject = remoteStream;
-                            audio.play();
-                        });
-                        call.on('close', () => delete chamadasAtivas[destinoId]);
-                        call.on('error', () => delete chamadasAtivas[destinoId]);
+            // VARREDURA ATIVA: Tenta conectar nos outros 4 slots a cada 4 segundos
+            setInterval(() => {
+                for (let i = 1; i <= 5; i++) {
+                    const targetId = SALA_BASE + i;
+                    if (i !== meuSlot && !conexoesAtivas[targetId]) {
+                        const call = peer.call(targetId, localStream);
+                        if (call) {
+                            conexoesAtivas[targetId] = call;
+                            call.on('stream', remoteStream => {
+                                if (!document.getElementById('audio-' + targetId)) {
+                                    const audio = new Audio();
+                                    audio.id = 'audio-' + targetId;
+                                    audio.srcObject = remoteStream;
+                                    audio.play();
+                                }
+                            });
+                            call.on('close', () => delete conexoesAtivas[targetId]);
+                            call.on('error', () => delete conexoesAtivas[targetId]);
+                        }
                     }
                 }
-            }
+                atualizarListaInterface();
+            }, 4000);
         }
 
-        // 3. PTT
+        function atualizarListaInterface() {
+            userListDisplay.innerHTML = "";
+            addUserToUI(vtrInput.value + " (Você)", true);
+            Object.keys(conexoesAtivas).forEach(id => {
+                const slotNum = id.replace(SALA_BASE, "");
+                addUserToUI("Unidade Slot " + slotNum, false);
+            });
+        }
+
+        function addUserToUI(name, isMe) {
+            const div = document.createElement('div');
+            div.className = "user-item";
+            div.innerHTML = `<span>${name}</span> <span class="online-dot">●</span>`;
+            userListDisplay.appendChild(div);
+        }
+
         pttBtn.addEventListener('mousedown', async () => {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            statusText.innerText = "SINALIZANDO...";
             await playSelCall(vtrInput.value);
             statusText.innerText = "TRANSMITINDO...";
             statusText.style.color = "#e74c3c";
         });
 
         pttBtn.addEventListener('mouseup', () => {
-            statusText.innerText = "ONLINE - SLOT " + meuSlot;
+            statusText.innerText = "PRONTO";
             statusText.style.color = "#666";
         });
-
-        function addUserToList(name) {
-            const div = document.createElement('div');
-            div.className = "user-item";
-            div.innerHTML = `<span>${name}</span> <span class="online-dot">●</span>`;
-            userList.appendChild(div);
-        }
 
         iniciar();
     </script>
