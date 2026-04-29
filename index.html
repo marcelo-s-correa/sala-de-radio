@@ -4,81 +4,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RADIO P2P - TÁTICO</title>
+    <title>CONSOLE TÁTICO v3.1 - SEGURANÇA TOTAL</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
+        :root {
+            --neon-green: #00ff41;
+            --neon-red: #ff3b3b;
+            --bg-dark: #0a0a0b;
+            --panel-bg: rgba(26, 26, 27, 0.9);
+        }
+
         body {
-            background: #0a0a0a;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
+            background: var(--bg-dark);
+            color: var(--neon-green);
+            font-family: 'Segoe UI', monospace;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden;
         }
 
-        .panel {
-            background: #1a1a1a;
-            padding: 25px;
-            border-radius: 15px;
-            border: 2px solid #333;
-            width: 300px;
+        .terminal {
+            background: var(--panel-bg);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid #333;
+            width: 350px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
             text-align: center;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+            position: relative;
         }
 
-        .display {
-            background: #000;
-            padding: 15px;
-            border-radius: 8px;
+        .header {
+            font-size: 0.6rem;
+            letter-spacing: 3px;
+            color: #555;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        .display-area {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            border-radius: 12px;
             border: 1px solid #222;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         input {
             background: transparent;
             border: none;
-            color: #0f0;
-            font-family: monospace;
-            font-size: 1.2rem;
+            color: var(--neon-green);
+            font-family: 'Courier New', monospace;
+            font-size: 1.4rem;
             text-align: center;
             width: 100%;
             outline: none;
-            border-bottom: 1px solid #333;
-            margin-bottom: 10px;
+            border-bottom: 1px solid #222;
+            margin-bottom: 15px;
+        }
+
+        input:disabled {
+            color: #004411;
+            border-bottom: 1px solid #111;
+        }
+
+        .protocol-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .protocol-btn {
+            background: #222;
+            border: 1px solid #444;
+            color: #666;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+
+        .protocol-btn.active {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+            background: rgba(0, 255, 65, 0.1);
         }
 
         .ptt-btn {
-            width: 130px;
-            height: 130px;
+            width: 140px;
+            height: 140px;
             border-radius: 50%;
-            border: 4px solid #222;
-            background: radial-gradient(#333, #111);
+            border: 8px solid #222;
+            background: radial-gradient(circle, #2a2a2a 0%, #111 100%);
             color: #444;
-            font-weight: bold;
+            font-weight: 900;
+            font-size: 1.2rem;
             cursor: pointer;
-            transition: 0.1s;
+            transition: all 0.1s;
+            box-shadow: 0 10px 0 #000;
             touch-action: none;
-            margin: 15px 0;
+            margin-bottom: 20px;
         }
 
         .ptt-btn.ready {
-            background: radial-gradient(#e74c3c, #c0392b);
-            color: white;
-            border-color: #500;
+            color: var(--neon-red);
         }
 
         .ptt-btn.active {
-            background: #ff0000 !important;
-            box-shadow: 0 0 20px #f00;
-            transform: scale(0.98);
+            transform: translateY(8px);
+            box-shadow: 0 2px 0 #000;
+            background: radial-gradient(circle, #ff3b3b 0%, #8b0000 100%) !important;
+            color: white;
+        }
+
+        .disconnect-btn {
+            background: transparent;
+            border: 1px solid #444;
+            color: #444;
+            padding: 10px;
+            width: 100%;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: 0.3s;
+        }
+
+        .disconnect-btn:hover {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
         }
 
         #status {
-            font-size: 0.7rem;
-            color: #666;
+            font-size: 0.65rem;
+            color: #444;
+            margin-top: 15px;
             text-transform: uppercase;
         }
     </style>
@@ -86,106 +150,102 @@
 
 <body>
 
-    <div class="panel">
-        <div class="display">
-            <input id="room" placeholder="NOME DA SALA">
-            <input id="vtr" placeholder="ID DA UNIDADE">
+    <div class="terminal">
+        <div class="header">Operational Comms Unit</div>
+        <div class="display-area">
+            <input id="room" placeholder="CANAL" spellcheck="false">
+            <input id="vtr" placeholder="ID UNIDADE" spellcheck="false">
         </div>
-
-        <button id="connectBtn" onclick="entrar()"
-            style="background:#0f0; border:none; padding:10px; width:100%; cursor:pointer; font-weight:bold;">SINALIZAR
-            REDE</button>
+        <div class="protocol-selector" id="p-selector">
+            <button class="protocol-btn active" onclick="setProtocol('CCIR', this)">CCIR</button>
+            <button class="protocol-btn" onclick="setProtocol('ZVEI', this)">ZVEI</button>
+            <button class="protocol-btn" onclick="setProtocol('DTMF', this)">DTMF</button>
+        </div>
+        <button id="mainActionBtn" onclick="entrar()"
+            style="background:var(--neon-green); color:#000; border:none; padding:12px; width:100%; border-radius:8px; cursor:pointer; font-weight:bold; margin-bottom: 20px;">ESTABELECER
+            LINK</button>
 
         <button class="ptt-btn" id="pttBtn" disabled>OFFLINE</button>
 
-        <p id="status">AGUARDANDO CONFIGURAÇÃO</p>
+        <button id="disconnectBtn" class="disconnect-btn" onclick="desconectar()" style="display: none;">ENCERRAR
+            OPERAÇÃO (DISCONNECT)</button>
+
+        <p id="status">SISTEMA EM STANDBY</p>
     </div>
 
     <script>
-        // Tabela CCIR para sinalização real
-        const ccirTable = { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 };
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const protocols = {
+            CCIR: { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 },
+            ZVEI: { '1': 1060, '2': 1160, '3': 1270, '4': 1400, '5': 1530, '6': 1670, '7': 1830, '8': 2000, '9': 2200, '0': 2400, 'R': 2600 },
+            DTMF: { '1': [697, 1209], '2': [697, 1336], '3': [697, 1477], '4': [770, 1209], '5': [770, 1336], '6': [770, 1477], '7': [852, 1209], '8': [852, 1336], '9': [852, 1477], '0': [941, 1336] }
+        };
 
-        let peer, localStream, myId, myRoom, myVtr;
+        let currentProtocol = 'CCIR';
+        let audioCtx, peer, micStream, mixedStream, micGain, scanInterval;
         let connections = {};
 
-        function log(msg) { document.getElementById('status').innerText = msg; }
-
-        async function playBeep(digits) {
-            const duration = 0.1;
-            let startTime = audioCtx.currentTime;
-            let d = digits.replace(/\D/g, '').split('');
-            let processed = d.map((val, i) => (i > 0 && val === d[i - 1] ? 'R' : val));
-
-            processed.forEach(digit => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.frequency.value = ccirTable[digit] || 1000;
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.setValueAtTime(0.4, startTime + 0.002);
-                gain.gain.setValueAtTime(0, startTime + duration);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(startTime); osc.stop(startTime + duration);
-                startTime += duration;
-            });
-            return new Promise(r => setTimeout(r, processed.length * 110));
+        function setProtocol(p, btn) {
+            currentProtocol = p;
+            document.querySelectorAll('.protocol-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
         }
 
         async function entrar() {
-            myRoom = document.getElementById('room').value.trim().toUpperCase();
-            myVtr = document.getElementById('vtr').value.trim();
-
-            if (!myRoom || !myVtr) return log("ERRO: PREENCHA OS CAMPOS");
+            const room = document.getElementById('room').value.trim().toUpperCase();
+            const vtr = document.getElementById('vtr').value.trim();
+            if (!room || !vtr) return;
 
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                localStream.getAudioTracks()[0].enabled = false; // Começa mutado
-            } catch (e) { return log("ERRO: PERMITA O MICROFONE"); }
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Lógica de Slot: Tenta IDs de 1 a 5 na sala para se encontrarem
-            tentarSlot(1);
+                const micSource = audioCtx.createMediaStreamSource(micStream);
+                micGain = audioCtx.createGain();
+                micGain.gain.value = 0;
+
+                const dest = audioCtx.createMediaStreamDestination();
+                micSource.connect(micGain);
+                micGain.connect(dest);
+
+                mixedStream = dest.stream;
+                tentarSlot(room, 1);
+            } catch (e) { document.getElementById('status').innerText = "ERRO MICROFONE"; }
         }
 
-        function tentarSlot(slot) {
-            if (slot > 5) return log("SALA LOTADA");
-
-            const tentativaId = `${myRoom}-SLOT-${slot}`;
-            const p = new Peer(tentativaId, { debug: 1 });
-
+        function tentarSlot(room, slot) {
+            if (slot > 5) return;
+            const p = new Peer(`${room}-SLOT-${slot}`);
             p.on('open', id => {
                 peer = p;
-                myId = id;
-                log("CONECTADO NO SLOT " + slot);
                 configurarRadio();
             });
-
             p.on('error', err => {
-                if (err.type === 'unavailable-id') {
-                    p.destroy();
-                    tentarSlot(slot + 1);
-                } else {
-                    log("ERRO DE REDE");
-                }
+                if (err.type === 'unavailable-id') { p.destroy(); tentarSlot(room, slot + 1); }
             });
         }
 
         function configurarRadio() {
-            const pttBtn = document.getElementById('pttBtn');
-            pttBtn.disabled = false;
-            pttBtn.classList.add('ready');
-            pttBtn.innerText = "PTT";
+            const btn = document.getElementById('pttBtn');
+            btn.disabled = false; btn.classList.add('ready'); btn.innerText = "PTT";
+            document.getElementById('status').innerText = "LINK ATIVO - QAP";
+
+            // UI Update
+            document.getElementById('mainActionBtn').style.display = 'none';
+            document.getElementById('disconnectBtn').style.display = 'block';
+            document.getElementById('room').disabled = true;
+            document.getElementById('vtr').disabled = true;
 
             peer.on('call', call => {
-                call.answer(localStream);
+                call.answer(mixedStream);
                 vincularAudio(call);
             });
 
-            // Tenta conectar nos outros slots da sala
-            setInterval(() => {
+            scanInterval = setInterval(() => {
+                const room = document.getElementById('room').value.toUpperCase();
                 for (let i = 1; i <= 5; i++) {
-                    const targetId = `${myRoom}-SLOT-${i}`;
-                    if (targetId !== myId && !connections[targetId]) {
-                        const call = peer.call(targetId, localStream);
+                    const target = `${room}-SLOT-${i}`;
+                    if (target !== peer.id && !connections[target]) {
+                        const call = peer.call(target, mixedStream);
                         if (call) vincularAudio(call);
                     }
                 }
@@ -194,40 +254,91 @@
 
         function vincularAudio(call) {
             connections[call.peer] = call;
-            call.on('stream', stream => {
-                const audio = new Audio();
-                audio.srcObject = stream;
-                audio.play();
-            });
+            call.on('stream', s => { const a = new Audio(); a.srcObject = s; a.play(); });
             call.on('close', () => delete connections[call.peer]);
         }
 
-        // --- LÓGICA DE PTT COM BEEP CCIR ---
-        const pttBtn = document.getElementById('pttBtn');
+        function desconectar() {
+            // 1. Limpa o Intervalo de busca
+            clearInterval(scanInterval);
 
+            // 2. Fecha todas as conexões ativas
+            Object.values(connections).forEach(call => call.close());
+            connections = {};
+
+            // 3. Destrói o Peer (libera o slot no servidor)
+            if (peer) {
+                peer.destroy();
+                peer = null;
+            }
+
+            // 4. Para o microfone
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+            }
+
+            // 5. Reseta UI
+            const btn = document.getElementById('pttBtn');
+            btn.disabled = true; btn.classList.remove('ready'); btn.innerText = "OFFLINE";
+            document.getElementById('mainActionBtn').style.display = 'block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            document.getElementById('room').disabled = false;
+            document.getElementById('vtr').disabled = false;
+            document.getElementById('status').innerText = "LINK ENCERRADO";
+        }
+
+        async function playBeep(digits) {
+            const dur = 0.08, pause = 0.02;
+            let startTime = audioCtx.currentTime;
+            let d = digits.replace(/\D/g, '').split('');
+
+            d.forEach((digit, i) => {
+                const time = startTime + (i * (dur + pause));
+                if (currentProtocol === 'DTMF') {
+                    const freqs = protocols.DTMF[digit] || [941, 1336];
+                    createTone(freqs[0], time, dur); createTone(freqs[1], time, dur);
+                } else {
+                    const actual = (i > 0 && digit === d[i - 1]) ? 'R' : digit;
+                    createTone(protocols[currentProtocol][actual] || 1000, time, dur);
+                }
+            });
+            return new Promise(r => setTimeout(r, d.length * 110));
+        }
+
+        function createTone(freq, start, dur) {
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.frequency.value = freq;
+            g.gain.setValueAtTime(0, start);
+            g.gain.setValueAtTime(0.3, start + 0.005);
+            g.gain.setValueAtTime(0, start + dur);
+            osc.connect(g);
+            g.connect(audioCtx.destination);
+            g.connect(micGain.context.destination);
+            osc.start(start); osc.stop(start + dur);
+        }
+
+        const pttBtn = document.getElementById('pttBtn');
         pttBtn.addEventListener('pointerdown', async (e) => {
             e.preventDefault();
             if (pttBtn.disabled) return;
-
             pttBtn.classList.add('active');
-            log("SINALIZANDO...");
-
             if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-            // Toca o Beep ID antes de abrir o microfone
-            await playBeep(myVtr);
-
-            localStream.getAudioTracks()[0].enabled = true;
-            log("TRANSMITINDO...");
+            micGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            await playBeep(document.getElementById('vtr').value);
+            micGain.gain.setValueAtTime(1, audioCtx.currentTime);
+            document.getElementById('status').innerText = "TRANSMITINDO...";
         });
 
         window.addEventListener('pointerup', () => {
-            if (!peer) return;
+            if (!micGain) return;
             pttBtn.classList.remove('active');
-            localStream.getAudioTracks()[0].enabled = false;
-            log("QAP - NA ESCUTA");
+            micGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            document.getElementById('status').innerText = "QAP - STANDBY";
         });
 
+        // Segurança extra: desconecta se fechar a aba
+        window.addEventListener('beforeunload', desconectar);
     </script>
 </body>
 
