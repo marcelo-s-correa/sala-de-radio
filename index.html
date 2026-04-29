@@ -18,6 +18,7 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
+            user-select: none;
         }
 
         .radio-container {
@@ -49,30 +50,37 @@
             outline: none;
         }
 
+        input::placeholder {
+            color: #050;
+        }
+
         .ptt-btn {
-            width: 120px;
-            height: 120px;
+            width: 140px;
+            height: 140px;
             border-radius: 50%;
             border: none;
-            background: radial-gradient(#e74c3c, #c0392b);
-            color: white;
+            background: radial-gradient(#555, #222);
+            color: #777;
             font-weight: bold;
+            font-size: 1.2rem;
             cursor: pointer;
-            box-shadow: 0 6px #992d22;
+            box-shadow: 0 6px #000;
             transition: all 0.1s;
             -webkit-tap-highlight-color: transparent;
+            touch-action: none;
         }
 
-        .ptt-btn:active {
-            box-shadow: 0 2px #992d22;
+        .ptt-btn.ready {
+            background: radial-gradient(#e74c3c, #c0392b);
+            color: white;
+            box-shadow: 0 6px #992d22;
+        }
+
+        .ptt-btn.active {
+            background: radial-gradient(#ff4d4d, #d32f2f) !important;
             transform: translateY(4px);
-            background: radial-gradient(#c0392b, #a93226);
-        }
-
-        .ptt-btn:disabled {
-            background: #555;
-            box-shadow: none;
-            cursor: not-allowed;
+            box-shadow: 0 2px #7b1a1a !important;
+            color: white;
         }
 
         .list-container {
@@ -90,10 +98,12 @@
             margin: 3px 0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
         .online-dot {
             color: #0f0;
+            font-size: 1.2rem;
         }
 
         #status {
@@ -108,154 +118,117 @@
 <body>
 
     <div class="radio-container">
-        <div style="font-size: 0.7rem; color: #888; margin-bottom: 10px;">CANAL: <span id="roomDisplay">1704</span>
-        </div>
+        <div style="font-size: 0.7rem; color: #888; margin-bottom: 10px;">CANAL: 1704</div>
         <div class="display">
             <label style="font-size: 0.7rem; color: #444; display: block; margin-bottom: 5px;">IDENTIFICAÇÃO</label>
-            <input type="text" id="vtrInput" value="54-7967">
+            <input type="text" id="vtrInput" value="" placeholder="DIGITE O ID" spellcheck="false">
         </div>
 
-        <button class="ptt-btn" id="pttBtn" disabled>CONECTANDO</button>
-        <p id="status">INICIANDO REDE...</p>
+        <button class="ptt-btn" id="pttBtn" disabled>PTT</button>
+        <p id="status">AGUARDANDO ID...</p>
 
         <div class="list-container">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #888;">NA ESCUTA (MÁX 5):</div>
+            <div style="font-weight: bold; margin-bottom: 5px; color: #888;">NA ESCUTA:</div>
             <div id="userList"></div>
         </div>
     </div>
 
     <script>
         const ccirTable = { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 };
-        const SALA_BASE = "PMERJ-1704-SLOT-";
+        const SALA_BASE = "PMERJ-1704-VTR-";
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
         const pttBtn = document.getElementById('pttBtn');
         const vtrInput = document.getElementById('vtrInput');
         const statusText = document.getElementById('status');
         const userListDisplay = document.getElementById('userList');
 
-        let peer = null;
-        let localStream;
-        let meuSlot = 0;
-        let conexoesAtivas = {};
+        let peer = null, localStream = null, meuSlot = 0, isTransmitting = false;
+        let unidadesOnline = {};
 
         const peerConfig = {
-            config: {
-                'iceServers': [
-                    { url: 'stun:stun.l.google.com:19302' },
-                    { url: 'stun:stun1.l.google.com:19302' }
-                ]
-            }
+            config: { 'iceServers': [{ url: 'stun:stun.l.google.com:19302' }, { url: 'stun:stun1.l.google.com:19302' }], 'sdpSemantics': 'unified-plan' }
         };
 
-        async function playSelCall(digits) {
+        async function playBeep(digits) {
             const duration = 0.1;
             let startTime = audioCtx.currentTime;
-            let cleanDigits = digits.replace(/\D/g, '').split('');
+            let d = digits.replace(/\D/g, '').split('');
             let processed = [];
-            for (let i = 0; i < cleanDigits.length; i++) {
-                processed.push(i > 0 && cleanDigits[i] === cleanDigits[i - 1] ? 'R' : cleanDigits[i]);
-            }
+            for (let i = 0; i < d.length; i++) { processed.push(i > 0 && d[i] === d[i - 1] ? 'R' : d[i]); }
             processed.forEach(digit => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.frequency.value = ccirTable[digit];
-                osc.type = 'sine';
                 gain.gain.setValueAtTime(0, startTime);
                 gain.gain.setValueAtTime(0.5, startTime + 0.002);
-                gain.gain.setValueAtTime(0.5, startTime + duration - 0.002);
                 gain.gain.setValueAtTime(0, startTime + duration);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(startTime);
-                osc.stop(startTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(startTime); osc.stop(startTime + duration);
                 startTime += duration;
             });
-            return new Promise(resolve => setTimeout(resolve, processed.length * 100));
+            return new Promise(r => setTimeout(r, processed.length * 100));
         }
 
         async function iniciar() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                statusText.innerText = "BUSCANDO VAGA...";
-                tentarOcuparSlot(1);
-            } catch (err) {
-                statusText.innerText = "ERRO: PERMITA O MICROFONE";
-            }
+                localStream.getAudioTracks()[0].enabled = false;
+                statusText.innerText = "DIGITE O PREFIXO";
+                vtrInput.addEventListener('input', () => {
+                    if (vtrInput.value.length >= 2 && !peer) tentarOcuparSlot(1);
+                });
+            } catch (err) { statusText.innerText = "ERRO NO MICROFONE"; }
         }
 
         function tentarOcuparSlot(slot) {
-            if (slot > 5) {
-                statusText.innerText = "SALA CHEIA";
-                return;
-            }
+            if (slot > 10) return;
             const idTentativa = SALA_BASE + slot;
             const p = new Peer(idTentativa, peerConfig);
-
-            p.on('open', (id) => {
-                peer = p;
-                meuSlot = slot;
-                configurarRadio();
-            });
-
-            p.on('error', (err) => {
-                p.destroy();
-                tentarOcuparSlot(slot + 1);
-            });
+            p.on('open', () => { peer = p; meuSlot = slot; configurarRadio(); });
+            p.on('error', (err) => { if (err.type === 'unavailable-id') { p.destroy(); tentarOcuparSlot(slot + 1); } });
         }
 
         function configurarRadio() {
-            statusText.innerText = "ONLINE - SLOT " + meuSlot;
-            pttBtn.innerText = "PTT";
+            statusText.innerText = "QAP - NA ESCUTA";
             pttBtn.disabled = false;
-            atualizarLista();
+            pttBtn.classList.add('ready');
+
+            // Receber Dados (Identidade) e Áudio
+            peer.on('connection', conn => {
+                conn.on('data', data => { unidadesOnline[conn.peer] = data; atualizarInterface(); });
+            });
 
             peer.on('call', call => {
                 call.answer(localStream);
                 call.on('stream', stream => {
-                    const audioId = 'audio-' + call.peer;
-                    if (!document.getElementById(audioId)) {
-                        const audio = new Audio();
-                        audio.id = audioId;
-                        audio.srcObject = stream;
-                        audio.play();
-                    }
+                    let audio = document.getElementById('audio-' + call.peer) || new Audio();
+                    audio.id = 'audio-' + call.peer; audio.srcObject = stream; audio.play();
+                    atualizarInterface();
                 });
             });
 
-            // Tenta conectar em todos os slots a cada 3 segundos
             setInterval(() => {
-                for (let i = 1; i <= 5; i++) {
+                for (let i = 1; i <= 10; i++) {
                     const targetId = SALA_BASE + i;
-                    if (i !== meuSlot && !conexoesAtivas[targetId]) {
+                    if (i !== meuSlot && !unidadesOnline[targetId]) {
+                        const conn = peer.connect(targetId);
+                        if (conn) conn.on('open', () => conn.send(vtrInput.value));
+
                         const call = peer.call(targetId, localStream);
-                        if (call) {
-                            conexoesAtivas[targetId] = true;
-                            call.on('stream', stream => {
-                                const audioId = 'audio-' + targetId;
-                                if (!document.getElementById(audioId)) {
-                                    const audio = new Audio();
-                                    audio.id = audioId;
-                                    audio.srcObject = stream;
-                                    audio.play();
-                                }
-                            });
-                            call.on('close', () => delete conexoesAtivas[targetId]);
-                            call.on('error', () => delete conexoesAtivas[targetId]);
-                        }
+                        if (call) call.on('stream', () => {
+                            unidadesOnline[targetId] = unidadesOnline[targetId] || "VTR " + i;
+                            atualizarInterface();
+                        });
                     }
                 }
-                atualizarLista();
             }, 3000);
+            atualizarInterface();
         }
 
-        function atualizarLista() {
+        function atualizarInterface() {
             userListDisplay.innerHTML = "";
-            addUserToUI(vtrInput.value + " (Você)");
-            Object.keys(conexoesAtivas).forEach(id => {
-                const slotNum = id.replace(SALA_BASE, "");
-                addUserToUI("Unidade " + slotNum);
-            });
+            addUserToUI((vtrInput.value || "VOCÊ") + " (Local)");
+            Object.keys(unidadesOnline).forEach(id => { addUserToUI(unidadesOnline[id]); });
         }
 
         function addUserToUI(name) {
@@ -265,17 +238,28 @@
             userListDisplay.appendChild(div);
         }
 
-        pttBtn.addEventListener('mousedown', async () => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            await playSelCall(vtrInput.value);
-            statusText.innerText = "TRANSMITINDO...";
-            statusText.style.color = "#e74c3c";
-        });
+        const startPTT = async (e) => {
+            if (isTransmitting || pttBtn.disabled) return;
+            e.preventDefault(); isTransmitting = true;
+            pttBtn.classList.add('active');
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            await playBeep(vtrInput.value);
+            if (isTransmitting) {
+                localStream.getAudioTracks()[0].enabled = true;
+                statusText.innerText = "TRANSMITINDO...";
+            }
+        };
 
-        pttBtn.addEventListener('mouseup', () => {
-            statusText.innerText = "PRONTO";
-            statusText.style.color = "#666";
-        });
+        const stopPTT = (e) => {
+            e.preventDefault(); isTransmitting = false;
+            pttBtn.classList.remove('active');
+            if (localStream) localStream.getAudioTracks()[0].enabled = false;
+            statusText.innerText = "QAP - NA ESCUTA";
+        };
+
+        pttBtn.addEventListener('pointerdown', startPTT);
+        pttBtn.addEventListener('pointerup', stopPTT);
+        pttBtn.addEventListener('pointerleave', stopPTT);
 
         iniciar();
     </script>
