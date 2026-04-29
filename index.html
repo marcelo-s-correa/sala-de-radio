@@ -17,6 +17,7 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden;
         }
 
         .radio-container {
@@ -106,8 +107,8 @@
             <input type="text" id="vtrInput" value="54-7967">
         </div>
 
-        <button class="ptt-btn" id="pttBtn" disabled>CARREGANDO</button>
-        <p id="status" style="color: #666; font-size: 0.7rem; margin-top: 15px;">INICIANDO...</p>
+        <button class="ptt-btn" id="pttBtn" disabled>BUSCANDO VAGA</button>
+        <p id="status" style="color: #666; font-size: 0.7rem; margin-top: 15px;">AGUARDANDO MICROFONE...</p>
 
         <div class="list-container">
             <div style="font-weight: bold; margin-bottom: 5px; color: #888;">NA ESCUTA (MÁX 5):</div>
@@ -117,7 +118,7 @@
 
     <script>
         const ccirTable = { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 };
-        const ROOM_ID = "SALA_RÁDIO_1704";
+        const SALA_BASE = "PMERJ-1704-SLOT-";
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         const pttBtn = document.getElementById('pttBtn');
@@ -125,10 +126,12 @@
         const statusText = document.getElementById('status');
         const userList = document.getElementById('userList');
 
-        let peer = new Peer();
+        let peer = null;
         let localStream;
+        let meuSlot = 0;
+        let chamadasAtivas = {};
 
-        // 1. Lógica de Áudio EXATA do seu modelo
+        // 1. Lógica de Áudio (Corte Seco)
         async function playSelCall(digits) {
             const duration = 0.1;
             let startTime = audioCtx.currentTime;
@@ -136,25 +139,20 @@
             let processed = [];
 
             for (let i = 0; i < cleanDigits.length; i++) {
-                if (i > 0 && cleanDigits[i] === cleanDigits[i - 1]) {
-                    processed.push('R');
-                } else {
-                    processed.push(cleanDigits[i]);
-                }
+                processed.push(i > 0 && cleanDigits[i] === cleanDigits[i - 1] ? 'R' : cleanDigits[i]);
             }
 
             processed.forEach(digit => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-
                 osc.frequency.value = ccirTable[digit];
                 osc.type = 'sine';
 
-                // Envelope de ganho idêntico ao seu pedido
+                // Corte seco para som de rádio real
                 gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(0.5, startTime + 0.01);
-                gain.gain.linearRampToValueAtTime(0.5, startTime + duration - 0.01);
-                gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                gain.gain.setValueAtTime(0.5, startTime + 0.002);
+                gain.gain.setValueAtTime(0.5, startTime + duration - 0.002);
+                gain.gain.setValueAtTime(0, startTime + duration);
 
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
@@ -167,19 +165,48 @@
             return new Promise(resolve => setTimeout(resolve, processed.length * 100));
         }
 
-        // 2. Inicialização da Rede e Microfone
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            localStream = stream;
-            statusText.innerText = "PRONTO";
+        // 2. Inicialização de Rede e Microfone
+        async function iniciar() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                statusText.innerText = "BUSCANDO SLOT DISPONÍVEL...";
+                encontrarVaga();
+            } catch (err) {
+                statusText.innerText = "ERRO: ACESSO AO MICROFONE NEGADO";
+                statusText.style.color = "red";
+            }
+        }
+
+        async function encontrarVaga() {
+            for (let i = 1; i <= 5; i++) {
+                const idTentativa = SALA_BASE + i;
+                const tempPeer = new Peer(idTentativa);
+
+                const ocupado = await new Promise((resolve) => {
+                    tempPeer.on('open', () => resolve(false));
+                    tempPeer.on('error', (err) => resolve(true));
+                });
+
+                if (!ocupado) {
+                    peer = tempPeer;
+                    meuSlot = i;
+                    configurarPeer();
+                    return;
+                } else {
+                    tempPeer.destroy();
+                }
+            }
+            statusText.innerText = "SALA CHEIA (MÁX 5)";
+        }
+
+        function configurarPeer() {
+            statusText.innerText = "ONLINE - SLOT " + meuSlot;
             pttBtn.innerText = "PTT";
             pttBtn.disabled = false;
 
-            peer.on('open', (id) => {
-                console.log('Meu ID Peer:', id);
-                addUserToList(vtrInput.value + " (Você)");
-            });
+            addUserToList(vtrInput.value + " (Você)");
 
-            // Atender chamadas de amigos
+            // Receber áudio
             peer.on('call', call => {
                 call.answer();
                 call.on('stream', remoteStream => {
@@ -188,38 +215,55 @@
                     audio.play();
                 });
             });
-        }).catch(err => {
-            statusText.innerText = "ERRO: MICROFONE NÃO AUTORIZADO";
-            statusText.style.color = "red";
-        });
 
-        // 3. Ação do Botão
+            // Tentar conectar nos outros slots a cada 5 segundos
+            setInterval(conectarAosOutros, 5000);
+        }
+
+        function conectarAosOutros() {
+            for (let i = 1; i <= 5; i++) {
+                if (i === meuSlot) continue;
+                const destinoId = SALA_BASE + i;
+
+                // Se não estamos chamando esse slot, tentamos chamar
+                if (!chamadasAtivas[destinoId]) {
+                    const call = peer.call(destinoId, localStream);
+                    if (call) {
+                        chamadasAtivas[destinoId] = call;
+                        call.on('stream', remoteStream => {
+                            const audio = new Audio();
+                            audio.srcObject = remoteStream;
+                            audio.play();
+                        });
+                        call.on('close', () => delete chamadasAtivas[destinoId]);
+                        call.on('error', () => delete chamadasAtivas[destinoId]);
+                    }
+                }
+            }
+        }
+
+        // 3. PTT
         pttBtn.addEventListener('mousedown', async () => {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
             statusText.innerText = "SINALIZANDO...";
-            statusText.style.color = "#f1c40f";
-
             await playSelCall(vtrInput.value);
-
             statusText.innerText = "TRANSMITINDO...";
             statusText.style.color = "#e74c3c";
-
         });
 
         pttBtn.addEventListener('mouseup', () => {
-            statusText.innerText = "PRONTO";
+            statusText.innerText = "ONLINE - SLOT " + meuSlot;
             statusText.style.color = "#666";
         });
 
         function addUserToList(name) {
-            if (userList.children.length < 5) {
-                const div = document.createElement('div');
-                div.className = "user-item";
-                div.innerHTML = `<span>${name}</span> <span class="online-dot">●</span>`;
-                userList.appendChild(div);
-            }
+            const div = document.createElement('div');
+            div.className = "user-item";
+            div.innerHTML = `<span>${name}</span> <span class="online-dot">●</span>`;
+            userList.appendChild(div);
         }
+
+        iniciar();
     </script>
 </body>
 
