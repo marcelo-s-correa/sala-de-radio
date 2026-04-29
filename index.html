@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CONSOLE TÁTICO v3.1 - SEGURANÇA TOTAL</title>
+    <title>RÁDIO - 1704</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -87,6 +87,7 @@
             border-radius: 6px;
             font-size: 0.7rem;
             cursor: pointer;
+            transition: 0.3s;
         }
 
         .protocol-btn.active {
@@ -144,6 +145,7 @@
             color: #444;
             margin-top: 15px;
             text-transform: uppercase;
+            letter-spacing: 1px;
         }
     </style>
 </head>
@@ -151,12 +153,12 @@
 <body>
 
     <div class="terminal">
-        <div class="header">Operational Comms Unit</div>
+        <div class="header">RÁDIO - 1704</div>
         <div class="display-area">
             <input id="room" placeholder="CANAL" spellcheck="false">
-            <input id="vtr" placeholder="ID UNIDADE" spellcheck="false">
+            <input id="vtr" placeholder="IDENTIFICADOR" spellcheck="false">
         </div>
-        <div class="protocol-selector" id="p-selector">
+        <div class="protocol-selector">
             <button class="protocol-btn active" onclick="setProtocol('CCIR', this)">CCIR</button>
             <button class="protocol-btn" onclick="setProtocol('ZVEI', this)">ZVEI</button>
             <button class="protocol-btn" onclick="setProtocol('DTMF', this)">DTMF</button>
@@ -168,7 +170,7 @@
         <button class="ptt-btn" id="pttBtn" disabled>OFFLINE</button>
 
         <button id="disconnectBtn" class="disconnect-btn" onclick="desconectar()" style="display: none;">ENCERRAR
-            OPERAÇÃO (DISCONNECT)</button>
+            OPERAÇÃO</button>
 
         <p id="status">SISTEMA EM STANDBY</p>
     </div>
@@ -183,6 +185,7 @@
         let currentProtocol = 'CCIR';
         let audioCtx, peer, micStream, mixedStream, micGain, scanInterval;
         let connections = {};
+        let isTransmitting = false;
 
         function setProtocol(p, btn) {
             currentProtocol = p;
@@ -196,8 +199,8 @@
             if (!room || !vtr) return;
 
             try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
 
                 const micSource = audioCtx.createMediaStreamSource(micStream);
                 micGain = audioCtx.createGain();
@@ -213,15 +216,10 @@
         }
 
         function tentarSlot(room, slot) {
-            if (slot > 5) return;
+            if (slot > 5) { document.getElementById('status').innerText = "SALA CHEIA"; return; }
             const p = new Peer(`${room}-SLOT-${slot}`);
-            p.on('open', id => {
-                peer = p;
-                configurarRadio();
-            });
-            p.on('error', err => {
-                if (err.type === 'unavailable-id') { p.destroy(); tentarSlot(room, slot + 1); }
-            });
+            p.on('open', id => { peer = p; configurarRadio(); });
+            p.on('error', err => { if (err.type === 'unavailable-id') { p.destroy(); tentarSlot(room, slot + 1); } });
         }
 
         function configurarRadio() {
@@ -229,7 +227,6 @@
             btn.disabled = false; btn.classList.add('ready'); btn.innerText = "PTT";
             document.getElementById('status').innerText = "LINK ATIVO - QAP";
 
-            // UI Update
             document.getElementById('mainActionBtn').style.display = 'none';
             document.getElementById('disconnectBtn').style.display = 'block';
             document.getElementById('room').disabled = true;
@@ -254,30 +251,17 @@
 
         function vincularAudio(call) {
             connections[call.peer] = call;
-            call.on('stream', s => { const a = new Audio(); a.srcObject = s; a.play(); });
+            call.on('stream', s => { const a = new Audio(); a.srcObject = s; a.play().catch(e => console.log("Audio Play Deferred")); });
             call.on('close', () => delete connections[call.peer]);
         }
 
         function desconectar() {
-            // 1. Limpa o Intervalo de busca
             clearInterval(scanInterval);
-
-            // 2. Fecha todas as conexões ativas
             Object.values(connections).forEach(call => call.close());
             connections = {};
+            if (peer) { peer.destroy(); peer = null; }
+            if (micStream) { micStream.getTracks().forEach(track => track.stop()); }
 
-            // 3. Destrói o Peer (libera o slot no servidor)
-            if (peer) {
-                peer.destroy();
-                peer = null;
-            }
-
-            // 4. Para o microfone
-            if (micStream) {
-                micStream.getTracks().forEach(track => track.stop());
-            }
-
-            // 5. Reseta UI
             const btn = document.getElementById('pttBtn');
             btn.disabled = true; btn.classList.remove('ready'); btn.innerText = "OFFLINE";
             document.getElementById('mainActionBtn').style.display = 'block';
@@ -289,7 +273,7 @@
 
         async function playBeep(digits) {
             const dur = 0.08, pause = 0.02;
-            let startTime = audioCtx.currentTime;
+            let startTime = audioCtx.currentTime + 0.05;
             let d = digits.replace(/\D/g, '').split('');
 
             d.forEach((digit, i) => {
@@ -302,7 +286,7 @@
                     createTone(protocols[currentProtocol][actual] || 1000, time, dur);
                 }
             });
-            return new Promise(r => setTimeout(r, d.length * 110));
+            return (d.length * (dur + pause)) * 1000;
         }
 
         function createTone(freq, start, dur) {
@@ -319,25 +303,43 @@
         }
 
         const pttBtn = document.getElementById('pttBtn');
-        pttBtn.addEventListener('pointerdown', async (e) => {
+        const handlePTTDown = async (e) => {
             e.preventDefault();
-            if (pttBtn.disabled) return;
+            if (pttBtn.disabled || isTransmitting) return;
+
+            isTransmitting = true;
             pttBtn.classList.add('active');
+            document.getElementById('status').innerText = "SINALIZANDO...";
+
             if (audioCtx.state === 'suspended') await audioCtx.resume();
-            micGain.gain.setValueAtTime(0, audioCtx.currentTime);
-            await playBeep(document.getElementById('vtr').value);
-            micGain.gain.setValueAtTime(1, audioCtx.currentTime);
-            document.getElementById('status').innerText = "TRANSMITINDO...";
-        });
 
-        window.addEventListener('pointerup', () => {
-            if (!micGain) return;
+            micGain.gain.cancelScheduledValues(audioCtx.currentTime);
+            micGain.gain.setValueAtTime(0, audioCtx.currentTime);
+
+            const beepDuration = await playBeep(document.getElementById('vtr').value);
+
+            setTimeout(() => {
+                if (isTransmitting) {
+                    micGain.gain.setValueAtTime(1, audioCtx.currentTime);
+                    document.getElementById('status').innerText = "TRANSMITINDO...";
+                }
+            }, beepDuration + 50);
+        };
+
+        const handlePTTUp = (e) => {
+            if (!isTransmitting) return;
+            isTransmitting = false;
             pttBtn.classList.remove('active');
-            micGain.gain.setValueAtTime(0, audioCtx.currentTime);
-            document.getElementById('status').innerText = "QAP - STANDBY";
-        });
 
-        // Segurança extra: desconecta se fechar a aba
+            if (micGain) {
+                micGain.gain.cancelScheduledValues(audioCtx.currentTime);
+                micGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            }
+            document.getElementById('status').innerText = "QAP - STANDBY";
+        };
+
+        pttBtn.addEventListener('pointerdown', handlePTTDown);
+        window.addEventListener('pointerup', handlePTTUp);
         window.addEventListener('beforeunload', desconectar);
     </script>
 </body>
