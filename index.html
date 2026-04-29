@@ -3,720 +3,232 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>REDE RÁDIO P2P</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RADIO P2P - TÁTICO</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap"
-        rel="stylesheet">
     <style>
-        :root {
-            --bg: #080b08;
-            --panel: #0d110d;
-            --surface: #111711;
-            --border: #1c281c;
-            --green: #39ff14;
-            --green-dim: #1e8a0a;
-            --amber: #ffb300;
-            --red: #ff2d2d;
-            --text-muted: #3d5e3d;
-            --text-dim: #6a8f6a;
-        }
-
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
-            background: var(--bg);
-            color: var(--green);
-            font-family: 'Share Tech Mono', monospace;
-            min-height: 100dvh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* CRT scanlines */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(0deg, transparent, transparent 3px,
-                    rgba(0, 0, 0, 0.12) 3px, rgba(0, 0, 0, 0.12) 4px);
-            pointer-events: none;
-            z-index: 9999;
-        }
-
-        /* ========== LOBBY ========== */
-        #lobbyScreen {
-            width: 320px;
-            border: 1px solid var(--border);
-            background: var(--panel);
-            padding: 28px 24px;
+            background: #0a0a0a;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
         }
 
-        .logo-block {
+        .panel {
+            background: #1a1a1a;
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid #333;
+            width: 300px;
             text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
         }
 
-        .logo {
-            font-family: 'Orbitron', monospace;
-            font-size: 2rem;
-            font-weight: 900;
-            letter-spacing: 0.4em;
-            color: var(--green);
-            text-shadow: 0 0 24px rgba(57, 255, 20, 0.6);
-            line-height: 1;
-        }
-
-        .logo-sub {
-            font-size: 0.55rem;
-            color: var(--text-muted);
-            letter-spacing: 0.25em;
-            margin-top: 6px;
-        }
-
-        .divider {
-            height: 1px;
-            background: var(--border);
-        }
-
-        .field-label {
-            font-size: 0.58rem;
-            color: var(--text-dim);
-            letter-spacing: 0.18em;
-            margin-bottom: 6px;
-        }
-
-        .field-input {
-            width: 100%;
+        .display {
             background: #000;
-            border: none;
-            border-bottom: 1px solid var(--green-dim);
-            color: var(--green);
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 1.1rem;
-            padding: 7px 10px;
-            outline: none;
-            letter-spacing: 0.1em;
-            transition: border-color 0.2s;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #222;
+            margin-bottom: 15px;
         }
 
-        .field-input:focus {
-            border-bottom-color: var(--amber);
-            color: var(--amber);
-        }
-
-        .tone-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .tone-opt {
-            padding: 9px 0;
-            background: #000;
-            border: 1px solid var(--border);
-            color: var(--text-dim);
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.72rem;
-            letter-spacing: 0.15em;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.15s;
-            user-select: none;
-        }
-
-        .tone-opt:hover {
-            border-color: var(--green-dim);
-            color: var(--green-dim);
-        }
-
-        .tone-opt.sel {
-            border-color: var(--green);
-            color: var(--green);
-            text-shadow: 0 0 8px var(--green);
-        }
-
-        .join-btn {
-            width: 100%;
-            padding: 14px;
+        input {
             background: transparent;
-            border: 1px solid var(--green);
-            color: var(--green);
-            font-family: 'Orbitron', monospace;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.35em;
+            border: none;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 1.2rem;
+            text-align: center;
+            width: 100%;
+            outline: none;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+
+        .ptt-btn {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            border: 4px solid #222;
+            background: radial-gradient(#333, #111);
+            color: #444;
+            font-weight: bold;
             cursor: pointer;
-            text-shadow: 0 0 8px var(--green);
-            box-shadow: 0 0 16px rgba(57, 255, 20, 0.08);
-            transition: all 0.15s;
+            transition: 0.1s;
+            touch-action: none;
+            margin: 15px 0;
         }
 
-        .join-btn:hover {
-            background: rgba(57, 255, 20, 0.04);
-            box-shadow: 0 0 28px rgba(57, 255, 20, 0.18);
+        .ptt-btn.ready {
+            background: radial-gradient(#e74c3c, #c0392b);
+            color: white;
+            border-color: #500;
         }
 
-        .join-btn:active {
+        .ptt-btn.active {
+            background: #ff0000 !important;
+            box-shadow: 0 0 20px #f00;
             transform: scale(0.98);
         }
 
-        .join-btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-        }
-
-        #lobbyMsg {
-            font-size: 0.62rem;
-            text-align: center;
-            color: var(--text-muted);
-            min-height: 16px;
-            letter-spacing: 0.1em;
-        }
-
-        #lobbyMsg.err {
-            color: var(--red);
-        }
-
-        #radioScreen {
-            width: 320px;
-            border: 1px solid var(--border);
-            background: var(--panel);
-            display: none;
-            flex-direction: column;
-        }
-
-        /* Header strip */
-        .r-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 14px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .r-ch {
-            font-family: 'Orbitron', monospace;
-            font-size: 0.68rem;
-            letter-spacing: 0.2em;
-            color: var(--green);
-        }
-
-        .r-meta {
-            font-size: 0.58rem;
-            color: var(--text-muted);
-            letter-spacing: 0.12em;
-        }
-
-        /* Signal bars */
-        .sig-wrap {
-            display: flex;
-            gap: 3px;
-            align-items: flex-end;
-            height: 14px;
-        }
-
-        .sig-bar {
-            width: 4px;
-            border-radius: 1px;
-            background: var(--border);
-        }
-
-        .sig-bar:nth-child(1) {
-            height: 3px
-        }
-
-        .sig-bar:nth-child(2) {
-            height: 5px
-        }
-
-        .sig-bar:nth-child(3) {
-            height: 8px
-        }
-
-        .sig-bar:nth-child(4) {
-            height: 11px
-        }
-
-        .sig-bar:nth-child(5) {
-            height: 14px
-        }
-
-        .sig-bar.on {
-            background: var(--green);
-            box-shadow: 0 0 4px var(--green);
-        }
-
-        /* VTR display */
-        .r-vtr-wrap {
-            padding: 14px 14px 12px;
-            background: #000;
-            border-bottom: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .r-vtr-lbl {
-            font-size: 0.52rem;
-            color: var(--text-muted);
-            letter-spacing: 0.2em;
-            margin-bottom: 4px;
-        }
-
-        .r-vtr-val {
-            font-family: 'Orbitron', monospace;
-            font-size: 1.9rem;
-            font-weight: 700;
-            color: var(--amber);
-            text-shadow: 0 0 18px rgba(255, 179, 0, 0.6);
-            letter-spacing: 0.08em;
-        }
-
-        /* Status */
-        .r-status {
-            padding: 7px 14px;
-            font-size: 0.62rem;
-            letter-spacing: 0.12em;
-            text-align: center;
-            background: var(--bg);
-            border-bottom: 1px solid var(--border);
-            min-height: 30px;
-            transition: color 0.2s;
-        }
-
-        /* PTT Zone */
-        .r-ptt-zone {
-            padding: 28px 20px 22px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 14px;
-        }
-
-        #pttBtn {
-            width: 148px;
-            height: 148px;
-            border-radius: 50%;
-            border: 3px solid #333;
-            background: radial-gradient(circle at 38% 32%, #1c0808, #0e0404);
-            color: #555;
-            font-family: 'Orbitron', monospace;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.22em;
-            cursor: not-allowed;
-            transition: all 0.08s;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), inset 0 1px 3px rgba(255, 255, 255, 0.04);
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: none;
-        }
-
-        #pttBtn.st-ready {
-            border-color: #8b2020;
-            background: radial-gradient(circle at 38% 32%, #2e0e0e, #6a1212);
-            color: #e06060;
-            cursor: pointer;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 22px rgba(200, 30, 30, 0.12), inset 0 1px 3px rgba(255, 255, 255, 0.06);
-        }
-
-        #pttBtn.st-tx {
-            border-color: var(--red);
-            background: radial-gradient(circle at 38% 32%, #8a1010, #c0392b);
-            color: #fff;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 50px rgba(255, 45, 45, 0.5), inset 0 1px 4px rgba(255, 255, 255, 0.12);
-            transform: scale(0.95) translateY(3px);
-        }
-
-        #pttBtn.st-rx {
-            border-color: var(--amber);
-            background: radial-gradient(circle at 38% 32%, #1e1200, #3a2400);
-            color: var(--amber);
-            cursor: not-allowed;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 179, 0, 0.15);
-        }
-
-        .tx-ind {
-            font-size: 0.64rem;
-            letter-spacing: 0.18em;
-            color: var(--text-muted);
-            text-align: center;
-            height: 18px;
-            transition: color 0.15s;
-        }
-
-        .tx-ind.blink {
-            animation: blink 0.5s infinite;
-        }
-
-        @keyframes blink {
-            50% {
-                opacity: 0.2;
-            }
-        }
-
-        /* Users */
-        .r-users {
-            border-top: 1px solid var(--border);
-            padding: 10px 14px 14px;
-            background: var(--bg);
-        }
-
-        .r-users-lbl {
-            font-size: 0.52rem;
-            color: var(--text-muted);
-            letter-spacing: 0.2em;
-            margin-bottom: 7px;
-        }
-
-        .u-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 4px 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .u-row:last-child {
-            border-bottom: none;
-        }
-
-        .u-vtr {
-            font-size: 0.74rem;
-            color: var(--green);
-            letter-spacing: 0.06em;
-        }
-
-        .u-vtr.tx {
-            color: var(--red);
-            animation: blink 0.5s infinite;
-        }
-
-        .u-right {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .u-slot {
-            font-size: 0.56rem;
-            color: var(--text-muted);
-        }
-
-        .u-dot {
-            font-size: 0.5rem;
-            color: var(--green-dim);
-        }
-
-        .u-dot.tx {
-            color: var(--red);
-            animation: blink 0.5s infinite;
-        }
-
-        /* Leave btn */
-        .r-leave {
-            width: 100%;
-            padding: 9px;
-            background: transparent;
-            border: none;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.62rem;
-            letter-spacing: 0.2em;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-
-        .r-leave:hover {
-            color: var(--red);
+        #status {
+            font-size: 0.7rem;
+            color: #666;
+            text-transform: uppercase;
         }
     </style>
 </head>
 
 <body>
 
-    <!-- ======== LOBBY ======== -->
-    <div id="lobbyScreen">
-        <div class="logo-block">
-            <div class="logo">RÁDIO</div>
-            <div class="logo-sub">COMUNICAÇÃO P2P · SIMPLEX</div>
-        </div>
-        <div class="divider"></div>
-
-        <div>
-            <div class="field-label">▸ CANAL (SALA)</div>
-            <input class="field-input" id="inRoom" type="text" maxlength="12" placeholder="EX: ALFA · BRAVO · 1704"
-                autocomplete="off" spellcheck="false">
+    <div class="panel">
+        <div class="display">
+            <input id="room" placeholder="NOME DA SALA">
+            <input id="vtr" placeholder="ID DA UNIDADE">
         </div>
 
-        <div>
-            <div class="field-label">▸ SUA IDENTIFICAÇÃO (VTR / CALL SIGN)</div>
-            <input class="field-input" id="inVtr" type="text" maxlength="12" placeholder="EX: 54-7967 · CHARLIE1"
-                autocomplete="off" spellcheck="false">
-        </div>
+        <button id="connectBtn" onclick="entrar()"
+            style="background:#0f0; border:none; padding:10px; width:100%; cursor:pointer; font-weight:bold;">SINALIZAR
+            REDE</button>
 
-        <div>
-            <div class="field-label">▸ SINALIZAÇÃO DE CHAMADA</div>
-            <div class="tone-row">
-                <div class="tone-opt sel" id="optCCIR" onclick="selTone('CCIR')">CCIR-5</div>
-                <div class="tone-opt" id="optZVEI" onclick="selTone('ZVEI')">ZVEI-2</div>
-            </div>
-        </div>
+        <button class="ptt-btn" id="pttBtn" disabled>OFFLINE</button>
 
-        <button class="join-btn" id="joinBtn" onclick="entrar()">[ ENTRAR NO CANAL ]</button>
-        <div id="lobbyMsg"></div>
-    </div>
-
-    <!-- ======== RADIO ======== -->
-    <div id="radioScreen">
-        <div class="r-header">
-            <div>
-                <div class="r-ch">CH: <span id="dCh">—</span></div>
-                <div class="r-meta">SLOT <span id="dSlot">—</span>/5 · <span id="dTone">CCIR</span></div>
-            </div>
-            <div class="sig-wrap">
-                <div class="sig-bar" id="s1"></div>
-                <div class="sig-bar" id="s2"></div>
-                <div class="sig-bar" id="s3"></div>
-                <div class="sig-bar" id="s4"></div>
-                <div class="sig-bar" id="s5"></div>
-            </div>
-        </div>
-
-        <div class="r-vtr-wrap">
-            <div class="r-vtr-lbl">IDENTIFICAÇÃO</div>
-            <div class="r-vtr-val" id="dVtr">—</div>
-        </div>
-
-        <div class="r-status" id="dStatus">INICIANDO...</div>
-
-        <div class="r-ptt-zone">
-            <button id="pttBtn">AGUARDE</button>
-            <div class="tx-ind" id="dTxInd">—</div>
-        </div>
-
-        <div class="r-users">
-            <div class="r-users-lbl">▸ NA ESCUTA (MÁX 5 SLOTS)</div>
-            <div id="userList"></div>
-        </div>
-
-        <button class="r-leave" onclick="sair()">[ SAIR DO CANAL ]</button>
+        <p id="status">AGUARDANDO CONFIGURAÇÃO</p>
     </div>
 
     <script>
-        "use strict";
+        // Tabela CCIR para sinalização real
+        const ccirTable = { '1': 1124, '2': 1197, '3': 1275, '4': 1358, '5': 1446, '6': 1540, '7': 1640, '8': 1747, '9': 1860, '0': 1981, 'R': 2110 };
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        let peer = null;
-        let myId = null;
-        let room = null;
+        let peer, localStream, myId, myRoom, myVtr;
+        let connections = {};
 
-        let conns = {};
-        let calls = {};
-        let audios = {};
+        function log(msg) { document.getElementById('status').innerText = msg; }
 
-        let users = {};
+        async function playBeep(digits) {
+            const duration = 0.1;
+            let startTime = audioCtx.currentTime;
+            let d = digits.replace(/\D/g, '').split('');
+            let processed = d.map((val, i) => (i > 0 && val === d[i - 1] ? 'R' : val));
 
-        let audioCtx, micGain, mixedDest, mixedStream;
-
-        const MAX_USERS = 5;
-
-        function lobbyMsg(t, e = false) {
-            const el = document.getElementById('lobbyMsg');
-            el.textContent = t;
-            el.className = e ? 'err' : '';
-        }
-
-        function genId() {
-            return Math.random().toString(36).slice(2, 8);
-        }
-
-        function getRoomLink(room, id) {
-            return location.origin + location.pathname + `?room=${room}&id=${id}`;
+            processed.forEach(digit => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.value = ccirTable[digit] || 1000;
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.setValueAtTime(0.4, startTime + 0.002);
+                gain.gain.setValueAtTime(0, startTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(startTime); osc.stop(startTime + duration);
+                startTime += duration;
+            });
+            return new Promise(r => setTimeout(r, processed.length * 110));
         }
 
         async function entrar() {
+            myRoom = document.getElementById('room').value.trim().toUpperCase();
+            myVtr = document.getElementById('vtr').value.trim();
 
-            room = document.getElementById('inRoom').value.trim().toUpperCase();
-            const vtr = document.getElementById('inVtr').value.trim().toUpperCase();
+            if (!myRoom || !myVtr) return log("ERRO: PREENCHA OS CAMPOS");
 
-            if (!room) { lobbyMsg('CANAL INVÁLIDO', true); return; }
-            if (!vtr) { lobbyMsg('IDENTIFICAÇÃO INVÁLIDA', true); return; }
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                localStream.getAudioTracks()[0].enabled = false; // Começa mutado
+            } catch (e) { return log("ERRO: PERMITA O MICROFONE"); }
 
-            myId = genId();
+            // Lógica de Slot: Tenta IDs de 1 a 5 na sala para se encontrarem
+            tentarSlot(1);
+        }
 
-            lobbyMsg('INICIANDO...');
+        function tentarSlot(slot) {
+            if (slot > 5) return log("SALA LOTADA");
 
-            const raw = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const tentativaId = `${myRoom}-SLOT-${slot}`;
+            const p = new Peer(tentativaId, { debug: 1 });
 
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            mixedDest = audioCtx.createMediaStreamDestination();
-            mixedStream = mixedDest.stream;
-
-            micGain = audioCtx.createGain();
-            micGain.gain.value = 0;
-
-            audioCtx.createMediaStreamSource(raw).connect(micGain);
-            micGain.connect(mixedDest);
-
-            peer = new Peer(myId);
-
-            peer.on('open', () => {
-
-                const link = getRoomLink(room, myId);
-
-                lobbyMsg('LINK GERADO - COMPARTILHE');
-
-                history.replaceState(null, '', link);
-
-                iniciarUI(vtr);
-
-                conectarViaURL();
+            p.on('open', id => {
+                peer = p;
+                myId = id;
+                log("CONECTADO NO SLOT " + slot);
+                configurarRadio();
             });
 
-            peer.on('connection', c => {
-                setupConn(c);
+            p.on('error', err => {
+                if (err.type === 'unavailable-id') {
+                    p.destroy();
+                    tentarSlot(slot + 1);
+                } else {
+                    log("ERRO DE REDE");
+                }
             });
+        }
+
+        function configurarRadio() {
+            const pttBtn = document.getElementById('pttBtn');
+            pttBtn.disabled = false;
+            pttBtn.classList.add('ready');
+            pttBtn.innerText = "PTT";
 
             peer.on('call', call => {
-                call.answer(mixedStream);
-                setupCall(call);
-            });
-        }
-
-        function conectarViaURL() {
-
-            const params = new URLSearchParams(location.search);
-            const id = params.get('id');
-
-            if (!id || id === myId) return;
-
-            connectTo(id);
-        }
-
-        function connectTo(id) {
-
-            if (conns[id]) return;
-
-            if (Object.keys(users).length >= MAX_USERS) {
-                lobbyMsg('SALA CHEIA', true);
-                return;
-            }
-
-            const c = peer.connect(id);
-
-            c.on('open', () => {
-                setupConn(c);
+                call.answer(localStream);
+                vincularAudio(call);
             });
 
-            const call = peer.call(id, mixedStream);
-            setupCall(call);
-        }
-
-        function setupConn(c) {
-
-            const id = c.peer;
-            conns[id] = c;
-
-            c.on('data', msg => {
-
-                if (msg.t === 'HELLO') {
-                    users[id] = msg.vtr;
-                    renderUsers();
-                    broadcast({ t: 'HELLO', vtr: users[myId] });
+            // Tenta conectar nos outros slots da sala
+            setInterval(() => {
+                for (let i = 1; i <= 5; i++) {
+                    const targetId = `${myRoom}-SLOT-${i}`;
+                    if (targetId !== myId && !connections[targetId]) {
+                        const call = peer.call(targetId, localStream);
+                        if (call) vincularAudio(call);
+                    }
                 }
-
-                if (msg.t === 'BYE') {
-                    delete users[id];
-                    renderUsers();
-                }
-
-            });
-
-            c.on('close', () => {
-                delete conns[id];
-                delete users[id];
-                renderUsers();
-            });
-
-            c.send({ t: 'HELLO', vtr: users[myId] });
+            }, 5000);
         }
 
-        function setupCall(call) {
-
-            calls[call.peer] = call;
-
-            call.on('stream', s => {
-                if (audios[call.peer]) return;
-                const a = new Audio();
-                a.srcObject = s;
-                a.play().catch(() => { });
-                audios[call.peer] = a;
+        function vincularAudio(call) {
+            connections[call.peer] = call;
+            call.on('stream', stream => {
+                const audio = new Audio();
+                audio.srcObject = stream;
+                audio.play();
             });
-
-            call.on('close', () => {
-                delete calls[call.peer];
-            });
+            call.on('close', () => delete connections[call.peer]);
         }
 
-        function broadcast(msg) {
-            Object.values(conns).forEach(c => {
-                if (c.open) c.send(msg);
-            });
-        }
+        // --- LÓGICA DE PTT COM BEEP CCIR ---
+        const pttBtn = document.getElementById('pttBtn');
 
-        function iniciarUI(vtr) {
+        pttBtn.addEventListener('pointerdown', async (e) => {
+            e.preventDefault();
+            if (pttBtn.disabled) return;
 
-            document.getElementById('lobbyScreen').style.display = 'none';
-            document.getElementById('radioScreen').style.display = 'flex';
+            pttBtn.classList.add('active');
+            log("SINALIZANDO...");
 
-            users[myId] = vtr;
-            renderUsers();
-        }
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-        function renderUsers() {
+            // Toca o Beep ID antes de abrir o microfone
+            await playBeep(myVtr);
 
-            const ul = document.getElementById('userList');
-            ul.innerHTML = '';
+            localStream.getAudioTracks()[0].enabled = true;
+            log("TRANSMITINDO...");
+        });
 
-            Object.entries(users).forEach(([id, v]) => {
-                const d = document.createElement('div');
-                d.textContent = v;
-                ul.appendChild(d);
-            });
+        window.addEventListener('pointerup', () => {
+            if (!peer) return;
+            pttBtn.classList.remove('active');
+            localStream.getAudioTracks()[0].enabled = false;
+            log("QAP - NA ESCUTA");
+        });
 
-            for (let i = 1; i <= 5; i++) {
-                document.getElementById('s' + i)
-                    .classList.toggle('on', i <= Object.keys(users).length);
-            }
-        }
-
-        function sair() {
-
-            broadcast({ t: 'BYE' });
-
-            if (peer) {
-                peer.disconnect();
-                peer.destroy();
-            }
-
-            location.href = location.pathname;
-        }
     </script>
-
 </body>
 
 </html>
